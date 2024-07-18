@@ -8,7 +8,7 @@
   <title>Wallpaper - Connecting Dots</title>
   <meta name="author" content="ryanthetechman">
   <!-- Original author: cybeerboy -->
-  <style type="text/css">
+  <style>
     * {
       margin: 0;
       padding: 0;
@@ -53,7 +53,9 @@
         mouseConnectionColor: "rgba(255,255,255,",
         particleConnectionColor: "rgba(255,255,255,",
         particleColor: "rgba(255,255,255,",
-        mouseRepulsionForce: 0.5
+        mouseRepulsionForce: 0.5,
+        particleBloomIntensity: 1.0,
+        lineBloomIntensity: 1.0
       };
 
       canvas.addEventListener('mousemove', function (e) {
@@ -183,6 +185,20 @@
           }
         };
 
+      Particle.prototype.updateRadius = function () {
+        this.radius = opts.defaultRadius + Math.random() * opts.addedRadius;
+      };
+
+      Particle.prototype.updateSpeed = function () {
+        this.speed = opts.defaultSpeed + Math.random() * opts.addedSpeed;
+        this.d.x = Math.cos(this.directionAngle) * this.speed;
+        this.d.y = Math.sin(this.directionAngle) * this.speed;
+      };
+
+      Particle.prototype.updateColor = function () {
+        this.color = opts.particleColor + "1)";
+      };
+
       var backgroundGradient = ctx.createLinearGradient(0, 0, window.innerWidth, 0);
       backgroundGradient.addColorStop(0, "#000000");
       backgroundGradient.addColorStop(0.5, "#000000");
@@ -230,16 +246,21 @@
 
       window.wallpaperPropertyListener = {
         applyUserProperties: function (properties) {
+          let needsSetup = false;
+
           if (properties.particles) {
             opts.particleAmount = properties.particles.value;
+            needsSetup = true;
           }
           if (properties.radius) {
             opts.defaultRadius = properties.radius.value / 2;
             opts.addedRadius = properties.radius.value / 2;
+            particles.forEach(p => p.updateRadius());
           }
           if (properties.speed) {
             opts.defaultSpeed = properties.speed.value * 0.075;
             opts.addedSpeed = properties.speed.value * 0.025;
+            particles.forEach(p => p.updateSpeed());
           }
           if (properties.connectionRadius) {
             opts.communicationRadius = properties.connectionRadius.value;
@@ -249,21 +270,25 @@
             opts.mouseParticleEnabled = properties.mouseParticle.value;
           }
           if (properties.mouseConnectionColor) {
-            var color = properties.mouseConnectionColor.value.split(' ');
+            let color = properties.mouseConnectionColor.value.split(' ');
             opts.mouseConnectionColor = "rgba(" + (color[0] * 255) + ", " + (color[1] * 255) + ", " + (color[2] * 255) + ",";
           }
           if (properties.particleConnectionColor) {
-            var color = properties.particleConnectionColor.value.split(' ');
+            let color = properties.particleConnectionColor.value.split(' ');
             opts.particleConnectionColor = "rgba(" + (color[0] * 255) + ", " + (color[1] * 255) + ", " + (color[2] * 255) + ",";
           }
           if (properties.particleColor) {
-            var color = properties.particleColor.value.split(' ');
+            let color = properties.particleColor.value.split(' ');
             opts.particleColor = "rgba(" + (color[0] * 255) + ", " + (color[1] * 255) + ", " + (color[2] * 255) + ",";
+            particles.forEach(p => p.updateColor());
           }
           if (properties.mouseRepulsionForce) {
             opts.mouseRepulsionForce = properties.mouseRepulsionForce.value * 0.0005;
           }
-          setup();
+
+          if (needsSetup) {
+            setup();
+          }
         }
       };
 
