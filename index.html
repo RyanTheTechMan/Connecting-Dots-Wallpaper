@@ -1,0 +1,275 @@
+<!doctype html>
+
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+
+  <title>Wallpaper - Connecting Dots</title>
+  <meta name="author" content="ryanthetechman">
+  <!-- Original author: cybeerboy -->
+  <style type="text/css">
+    * {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #000000;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+    }
+  </style>
+
+  <!--[if lt IE 9]>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.js"></script>
+	<![endif]-->
+</head>
+
+<body>
+  <canvas id="canvas"></canvas>
+
+  <script type="text/javascript">
+    "use strict";
+    (function () {
+      var canvas = document.getElementById("canvas");
+      var ctx = canvas.getContext("2d");
+      var w = canvas.width = window.innerWidth;
+      var h = canvas.height = window.innerHeight;
+      var mouse = { x: null, y: null };
+
+      var opts = {
+        particleAmount: 200,
+        defaultSpeed: 0.11,
+        addedSpeed: 0.04,
+        defaultRadius: 5,
+        addedRadius: 5,
+        communicationRadius: 150,
+        communicationRadiusSq: 150 * 150, // squared for faster calculations
+        mouseParticleEnabled: true,
+        mouseConnectionColor: "rgba(255,255,255,",
+        particleConnectionColor: "rgba(255,255,255,",
+        particleColor: "rgba(255,255,255,",
+        mouseRepulsionForce: 0.5
+      };
+
+      canvas.addEventListener('mousemove', function (e) {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+      });
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(min, value));
+      }
+
+      var particles = [],
+        grid,
+        gridRowLength = 0,
+
+        coordsToGrid = function (x, y) {
+          return Math.floor(x * y / opts.communicationRadiusSq);
+        },
+
+        Particle = function (Xpos, Ypos) {
+          this.x = Xpos ? Xpos : Math.random() * w;
+          this.y = Ypos ? Ypos : Math.random() * h;
+          this.speed = opts.defaultSpeed + Math.random() * opts.addedSpeed;
+          this.directionAngle = Math.floor(Math.random() * 360);
+          this.color = opts.particleColor + "1)";
+          this.radius = opts.defaultRadius + Math.random() * opts.addedRadius;
+          this.gridId = coordsToGrid(this.x, this.y);
+          this.gridIndex = grid[this.gridId].length;
+          grid[this.gridId].push(this);
+
+          this.d =
+          {
+            x: Math.cos(this.directionAngle) * this.speed,
+            y: Math.sin(this.directionAngle) * this.speed
+          };
+
+          this.update = function () {
+            this.border();
+
+            var mouseDistance = checkDistance(this.x, this.y, mouse.x, mouse.y);
+            if (opts.mouseParticleEnabled && mouse.x !== null && mouse.y !== null && mouseDistance < opts.communicationRadiusSq) {
+              var angleToMouse = Math.atan2(mouse.y - this.y, mouse.x - this.x);
+
+              var repulsionX = Math.cos(angleToMouse) * opts.mouseRepulsionForce;
+              var repulsionY = Math.sin(angleToMouse) * opts.mouseRepulsionForce;
+
+              this.d.x -= repulsionX;
+              this.d.y -= repulsionY;
+
+              var currentSpeed = Math.sqrt(this.d.x * this.d.x + this.d.y * this.d.y);
+              var maxSpeed = opts.defaultSpeed + opts.addedSpeed;
+              if (currentSpeed > maxSpeed) {
+                this.d.x = (this.d.x / currentSpeed) * maxSpeed;
+                this.d.y = (this.d.y / currentSpeed) * maxSpeed;
+              }
+            }
+
+            this.x += this.d.x;
+            this.y += this.d.y;
+
+            var newGridId = clamp(coordsToGrid(this.x, this.y), 0, grid.length - 1);
+            if (newGridId != this.gridId) {
+              grid[this.gridId].splice(this.gridIndex, 1);
+              this.gridIndex = grid[newGridId].length;
+              grid[newGridId].push(this);
+              this.gridId = newGridId;
+            }
+          };
+
+          this.border = function () {
+            if (this.x >= w || this.x <= 0) {
+              this.d.x *= -1;
+            }
+
+            if (this.y >= h || this.y <= 0) {
+              this.d.y *= -1;
+            }
+
+            this.x > w ? this.x = w : this.x;
+            this.y > h ? this.y = h : this.y;
+            this.x < 0 ? this.x = 0 : this.x;
+            this.y < 0 ? this.y = 0 : this.y;
+          };
+
+          this.draw = function () {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.fillStyle = this.color;
+            ctx.fill();
+          };
+        },
+        checkDistance = function (x1, y1, x2, y2) {
+          return (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+        },
+        communicatePoints = function (point1) {
+          for (var dx = -1; dx <= 1; ++dx) {
+            for (var dy = -1; dy <= 1; ++dy) {
+              var gridId = point1.gridId + dx + dy * gridRowLength;
+              if ((gridId < 0) || (gridId >= grid.length)) {
+                continue;
+              }
+              var father = grid[gridId];
+              for (var i = 0; i < father.length; i++) {
+                var distance = checkDistance(point1.x, point1.y, father[i].x, father[i].y);
+                if (distance < opts.communicationRadiusSq) {
+                  var opacity = 1 - distance / opts.communicationRadiusSq;
+                  ctx.strokeStyle = opts.particleConnectionColor + opacity + ")";
+                  ctx.beginPath();
+                  ctx.moveTo(point1.x, point1.y);
+                  ctx.lineTo(father[i].x, father[i].y);
+                  ctx.stroke();
+                }
+              }
+              if (opts.mouseParticleEnabled && mouse.x !== null && mouse.y !== null) {
+                var mouseDistance = checkDistance(point1.x, point1.y, mouse.x, mouse.y);
+                if (mouseDistance < opts.communicationRadiusSq) {
+                  var opacity = 1 - mouseDistance / opts.communicationRadiusSq;
+                  ctx.strokeStyle = opts.mouseConnectionColor + opacity + ")";
+                  ctx.beginPath();
+                  ctx.moveTo(point1.x, point1.y);
+                  ctx.lineTo(mouse.x, mouse.y);
+                  ctx.stroke();
+                }
+              }
+            }
+          }
+        };
+
+      var backgroundGradient = ctx.createLinearGradient(0, 0, window.innerWidth, 0);
+      backgroundGradient.addColorStop(0, "#000000");
+      backgroundGradient.addColorStop(0.5, "#000000");
+      backgroundGradient.addColorStop(1, "#000000");
+
+      function setup() {
+        var gridSz = coordsToGrid(w, h);
+        var i;
+        gridRowLength = Math.ceil(w / opts.communicationRadius);
+        grid = [];
+        for (i = 0; i <= gridSz; ++i) {
+          grid.push([]);
+        }
+
+        particles = [];
+        for (i = 0; i < opts.particleAmount; i++) {
+          particles.push(new Particle());
+        }
+      }
+
+      function loop() {
+        ctx.fillStyle = backgroundGradient;
+        ctx.fillRect(0, 0, w, h);
+
+        for (var i = 0; i < particles.length; i++) {
+          particles[i].update();
+          particles[i].draw();
+        }
+
+        ctx.lineWidth = 1.9;
+        for (var a = 0; a < particles.length; a++) {
+          communicatePoints(particles[a]);
+        }
+        window.requestAnimationFrame(loop);
+      }
+
+      setup();
+      window.requestAnimationFrame(loop);
+
+      window.addEventListener("resize", function () {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+        setup();
+      });
+
+      window.wallpaperPropertyListener = {
+        applyUserProperties: function (properties) {
+          if (properties.particles) {
+            opts.particleAmount = properties.particles.value;
+          }
+          if (properties.radius) {
+            opts.defaultRadius = properties.radius.value / 2;
+            opts.addedRadius = properties.radius.value / 2;
+          }
+          if (properties.speed) {
+            opts.defaultSpeed = properties.speed.value * 0.075;
+            opts.addedSpeed = properties.speed.value * 0.025;
+          }
+          if (properties.connectionRadius) {
+            opts.communicationRadius = properties.connectionRadius.value;
+            opts.communicationRadiusSq = opts.communicationRadius * opts.communicationRadius;
+          }
+          if (properties.mouseParticle) {
+            opts.mouseParticleEnabled = properties.mouseParticle.value;
+          }
+          if (properties.mouseConnectionColor) {
+            var color = properties.mouseConnectionColor.value.split(' ');
+            opts.mouseConnectionColor = "rgba(" + (color[0] * 255) + ", " + (color[1] * 255) + ", " + (color[2] * 255) + ",";
+          }
+          if (properties.particleConnectionColor) {
+            var color = properties.particleConnectionColor.value.split(' ');
+            opts.particleConnectionColor = "rgba(" + (color[0] * 255) + ", " + (color[1] * 255) + ", " + (color[2] * 255) + ",";
+          }
+          if (properties.particleColor) {
+            var color = properties.particleColor.value.split(' ');
+            opts.particleColor = "rgba(" + (color[0] * 255) + ", " + (color[1] * 255) + ", " + (color[2] * 255) + ",";
+          }
+          if (properties.mouseRepulsionForce) {
+            opts.mouseRepulsionForce = properties.mouseRepulsionForce.value * 0.0005;
+          }
+          setup();
+        }
+      };
+
+    })();
+
+  </script>
+</body>
+
+</html>
